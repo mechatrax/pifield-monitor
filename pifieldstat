@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+
+import sys
+import socket
+import json
+
+PROGRAM_VERSION = '1.0'
+
+SOCK_PATH = '/run/pifield-monitor/monitor.sock'
+
+USAGE = """
+Usage: pifieldstat [OPTION]
+    Show Pi-field battery status (all parameters by default)
+
+Options:
+    [PARAMETER]          get specific battery parameter
+
+    -d, debug            display debug data
+
+    -h, help             display help and exit
+
+    -v, version          display version and exit
+
+Parameters:
+"""[:-1]
+
+PARAMETERS = {
+    'capacity': ['            Battery capacity', 'mAh'],
+    'percentage': ['          Battery capacity', '%'],
+    'current': ['             Charge/Discharge current', 'mA'],
+    'voltage': ['             Battery voltage', 'mv'],
+    'temperature': ['         Battery temperature', '\'C'],
+}
+
+def get_json():
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(SOCK_PATH)
+    buf = sock.recv(1024).strip(b'\n')
+    sock.close()
+    return json.loads(buf) if buf else ''
+
+
+def help():
+    print(USAGE)
+    for key, val in sorted(PARAMETERS.items()):
+        print("    {} {} [{}]".format(key, val[0], val[1]))
+
+
+def version():
+    print("pifieldstat version {}".format(PROGRAM_VERSION))
+
+
+def get(opt=None):
+    js = get_json()
+
+    if opt:
+        if opt not in PARAMETERS.keys():
+            help()
+            exit(2)
+        print("{}".format(js[opt]))
+    else:
+        for key, val in PARAMETERS.items():
+            if key in js:
+                print("{}: {} {}".format(key, js[key], val[1]))
+
+
+try:
+    if len(sys.argv) < 2:
+        get()
+        exit()
+
+    cmd = sys.argv[1]
+    if cmd in ('-v', 'version'):
+        version()
+    elif cmd in ('-h', 'help'):
+        help()
+    elif cmd in ('-d', 'debug'):
+        print(json.dumps(get_json()))
+    else:
+        get(cmd)
+except Exception as e:
+    exit(e)

@@ -1,0 +1,16 @@
+Source: pifield-monitor
+Section: misc
+Priority: optional
+Maintainer: Yuta Kiyonaga <kiyonaga@mechatrax.com>
+Uploaders: Masahiro honda <honda@mechatrax.com>
+Build-Depends: debhelper-compat(= 12), bash-completion
+Standards-Version: 4.6.2
+Vcs-Git: https://github.com/mechatrax/pifield-monitor.git
+Vcs-browser: https://github.com/mechatrax/pifield-monitor
+Homepage: https://mechatrax.com
+
+Package: pifield-monitor
+Architecture: all
+Depends: ${misc:Depends}, python3-serial, python3-yaml, python3, systemd
+Description: Monitoring daemon for Pi-field
+ This package contains the daemon to monitoring serials connected to Pi-field.

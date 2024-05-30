@@ -1,0 +1,7 @@
+ACTION!="add|change|move", GOTO="pifield_end"
+SUBSYSTEM!="tty", GOTO="pifield_end"
+
+# ttyS0 on Raspberry Pi
+KERNEL=="ttyS0", SYMLINK+="ttyPIFIELD", ENV{SYSTEMD_WANTS}="pifield-monitor.service"
+
+LABEL="pifield_end"

@@ -1,0 +1,34 @@
+_pifieldstat_gen_cmds()
+{
+	local cmds=(
+		'capacity'
+		'percentage'
+		'current'
+		'temperature'
+		'voltage'
+		'debug'
+		'version'
+		'help'
+	)
+	COMPREPLY=( $(compgen -W '${cmds[@]}' -- $cur) )
+}
+
+_pifieldstat()
+{
+	local cur prev words cword
+	_init_completion || return
+
+	if [ $cword -eq 1 ]
+	then
+		_pifieldstat_gen_cmds
+		return
+	fi
+
+	case $prev in
+	-d|debug|-h|help|-v|version)
+		;;
+	esac
+} &&
+
+complete -F _pifieldstat pifieldstat
+

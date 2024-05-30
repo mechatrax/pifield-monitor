@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi-field monitoring daemon
+After=dev-ttyPIFIELD.device
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/pifieldmon
+
+[Install]
+WantedBy=multi-user.target

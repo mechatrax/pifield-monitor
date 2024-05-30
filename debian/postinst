@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+	udevadm control --reload-rules || true
+	udevadm trigger --subsystem-match=tty || true
+fi
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,7 @@
+ACTION!="add|change|move", GOTO="pifield_end"
+SUBSYSTEM!="tty", GOTO="pifield_end"
+
+# FTDI on Pi-field Mini dedicated board
+SUBSYSTEMS=="usb", KERNEL=="ttyUSB*", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", SYMLINK+="ttyPIFIELD", ENV{SYSTEMD_WANTS}="pifield-monitor.service"
+
+LABEL="pifield_end"

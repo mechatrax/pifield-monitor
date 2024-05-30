@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+
+import os
+import yaml
+import threading
+import serial
+import signal
+import socket
+import queue
+import json
+import sys
+
+CONFIG_FILE = '/etc/pifield-monitor/monitor.yml'
+SOCK_DIR = '/run/pifield-monitor'
+SOCK_FILE = 'monitor.sock'
+SOCK_PATH = os.path.join(SOCK_DIR, SOCK_FILE)
+SERIAL_TIMEOUT = 20
+SERIAL_ERR_COUNT = 3
+
+properties = {
+    "pifieldmini": {
+        "size": 44,
+        "newline": b'\r',
+        "baudrate": 9600,
+        "delimiter": ',',
+        "formatter": {
+            'header': str,
+            'count': int,
+            'status': int,
+            'capacity': int,
+            'percentage': int,
+            'voltage': lambda x: int(x) * 100,
+            'temperature': int,
+            'current': int,
+            'port': str,
+            'coefficient': lambda x: int(x) / 10,
+            'newline': str
+        }
+    }
+}
+
+
+class SerialCollector:
+    def __init__(self, port, props, timeout):
+        self.port = port
+        self.baudrate = props['baudrate']
+        self.size = props['size']
+        self.newline = props['newline']
+        self.delimiter = props['delimiter']
+        self.formatter = props['formatter']
+        self.timeout = timeout
+        self.ser = None
+
+    def open(self):
+        self.ser = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
+        self.ser.reset_output_buffer()
+        self.ser.reset_input_buffer()
+
+    def close(self):
+        if self.ser and self.ser.is_open:
+            self.ser.close()
+
+    def get_json(self):
+        recv = b''
+        if self.ser and self.ser.is_open:
+            recv = self.ser.read_until(self.newline)
+        return self._to_json(recv) if len(recv) == self.size else None
+
+    def _to_json(self, raw_data):
+        values = raw_data.decode('utf-8').split(self.delimiter)
+        js = dict(zip(self.formatter.keys(), values))
+        formatted_js = self._json_formatter(js)
+        return json.dumps(formatted_js).encode('utf-8')
+
+    def _json_formatter(self, js):
+        for k, v in js.items():
+            js[k] = self.formatter[k](v)
+        return js
+
+
+class SocketListener:
+    def __init__(self, q):
+        self.q = q
+        self.sock = None
+
+    def open(self):
+        if os.path.exists(SOCK_PATH):
+            os.remove(SOCK_PATH)
+        os.makedirs(SOCK_DIR, exist_ok=True)
+
+        self.sock = socket.socket(socket.AF_UNIX)
+        self.sock.bind(SOCK_PATH)
+        self.sock.listen(1)
+
+        if os.path.exists(SOCK_PATH):
+            os.chmod(SOCK_PATH, 0o777)
+
+    def close(self):
+        if self.sock:
+            self.sock.close()
+        if os.path.exists(SOCK_PATH):
+            os.unlink(SOCK_PATH)
+        if os.path.exists(SOCK_DIR):
+            os.rmdir(SOCK_DIR)
+
+    def run(self):
+        buf = b''
+        while True:
+            conn, _ = self.sock.accept()
+            try:
+                buf = self.q.get_nowait()
+            except queue.Empty:
+                pass
+            conn.send(buf + b'\n')
+
+
+class Configuration:
+    def __init__(self, path):
+        self.config = path
+
+    def read(self):
+        try:
+            with open(self.config, 'r') as f:
+                return yaml.safe_load(f)
+        except IOError as e:
+            sys.exit("Cannot access: {}.".format(self.config))
+
+
+class PiFieldMonitor:
+    def __init__(self, args):
+        self.args = args
+        self.configs = None
+        self.data_collector = None
+
+    def _setup_config(self, args):
+        if '-c' in args:
+          config_file = args[args.index('-c') + 1]
+        else:
+          config_file = CONFIG_FILE
+        self.configs = Configuration(config_file).read()
+
+    def _validate_config(self, interface):
+        if interface not in self.configs:
+            sys.exit("Interface: '{}' not found.".format(interface))
+        if_config = self.configs[interface]
+
+        if if_config['type'] not in properties:
+            sys.exit("Type: '{}' not found.".format(if_config['type']))
+
+        if not os.path.exists(if_config['port']):
+            sys.exit("Port: '{}' not found.".format(if_config['port']))
+
+    def _setup_interface(self, interface):
+        props = properties[self.configs[interface]['type']]
+        port = self.configs[interface]['port']
+
+        if interface == 'serial':
+            self.data_collector = SerialCollector(port, props, float(SERIAL_TIMEOUT))
+
+    def run(self, interface):
+        self._setup_config(self.args)
+        self._validate_config(interface)
+        self._setup_interface(interface)
+
+        if self.data_collector is None:
+            sys.exit("Unsupported interface type: {}.".format(interface))
+
+        self._data_collect()
+
+    def _data_collect(self):
+        err_count = 0
+        q = queue.Queue(1)
+        socket_listener = SocketListener(q)
+        socket_listener.open()
+        th = threading.Thread(target=socket_listener.run, daemon=True)
+        th.start()
+
+        try:
+            self.data_collector.open()
+            while th.is_alive():
+                js = self.data_collector.get_json()
+                if js:
+                    if q.full():
+                        q.get()
+                    q.put(js)
+                    err_count = 0
+                else:
+                    err_count += 1
+
+                if err_count >= SERIAL_ERR_COUNT:
+                    sys.exit('Serial errors exceeded the specified value.')
+                if not os.path.exists(SOCK_PATH):
+                    sys.exit('Cannot access: {}.'.format(SOCK_PATH))
+        finally:
+            self.data_collector.close()
+            socket_listener.close()
+
+
+if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
+    try:
+        monitor = PiFieldMonitor(sys.argv[1:])
+        monitor.run('serial')
+    except Exception as e:
+        exit(e)

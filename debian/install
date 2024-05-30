@@ -1,0 +1,4 @@
+./examples/99-pifield-usb-serial.rules /etc/udev/rules.d/
+./pifieldstat /usr/bin/
+./pifieldmon /usr/sbin/
+./monitor.yml /etc/pifield-monitor/

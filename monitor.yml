@@ -1,0 +1,3 @@
+serial:
+  type: pifieldmini
+  port: /dev/ttyPIFIELD
