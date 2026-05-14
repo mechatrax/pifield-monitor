@@ -1,3 +1,12 @@
+pifield-monitor (1.0.0.1) trixie; urgency=medium
+
+  * Update for trixie
+  * debian/control
+    - Bump Standards-Version to 4.7.2
+    - Bump debhelper-compat to 13
+
+ -- Yuta Kiyonaga <kiyonaga@mechatrax.com>  Thu, 14 May 2026 16:00:03 +0900
+
 pifield-monitor (1.0.0) bookworm; urgency=medium
 
   * First version
