@@ -65,7 +65,7 @@ Pi-field の監視動作を設定するための YAML ファイルです。
 ### /etc/udev/rules.d/99-pifield-usb-serial.rules  
 Pi-field のシリアルインターフェースを設定するためのファイルです。  
 
-### /lib/systemd/system/pifield-monitor.service  
+### /usr/lib/systemd/system/pifield-monitor.service  
 Pi-field の監視サービスを実行するためのファイルです。  
 pifieldmon をデーモンとして動作させます。 
 
